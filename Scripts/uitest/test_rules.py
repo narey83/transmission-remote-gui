@@ -332,7 +332,6 @@ try:
 
     print("F. Context menu regression (v0.1.5)")
     MS = RS                                  # the Move sheet sits where the Rules sheet was
-    MG = f"group 1 of {MS}"
 
     def open_move(ctrl=False):
         x, y = ui.position(f"row 1 of {TABLE}")
@@ -349,7 +348,7 @@ try:
 
     def f15(ctrl):
         open_move(ctrl)
-        ui.click(f"button 1 of {MG}")        # Cancel
+        ui.id_click("move.cancel", MS)
         ui.wait_for(lambda: not exists(MS), what="Move sheet to close")
     check("15a. right-click on a torrent row → context menu (→ Move…)", lambda: f15(False))
     check("15b. Ctrl+click on a torrent row → context menu (→ Move…)", lambda: f15(True))
@@ -357,15 +356,16 @@ try:
     def f16():
         rows = ui.ax(f"count rows of {TABLE}")
         open_move()
-        ui.type_into(f"text field 1 of {MG}", "D:/media")   # passes the app, the Linux daemon rejects it
-        ui.click(f"button 2 of {MG}")
-        ui.wait_for(lambda: exists(MS) and "The action failed" in texts(MS), what="the error alert")
-        shot("F16-alert")
+        ui.id_type("move.location", "D:/media", MS)   # passes the app, the Linux daemon rejects it
+        ui.id_click("move.submit", MS)
+        ui.wait_for(lambda: ui.id_exists("move.error", MS), what="the inline error")
+        shot("F16-inline-error")
         assert ui.ax(f"count rows of {TABLE}") == rows, "the torrent list changed"
-        ui.click(f"button 1 of {MS}")        # the alert's OK (an alert has no group)
-        ui.wait_for(lambda: not exists(MS), what="alert to close")
-        assert ui.ax(f"count rows of {TABLE}") == rows, "the list emptied after the alert"
-    check("16. Move to a folder the daemon rejects → alert, list is NOT emptied", f16)
+        assert ui.id_enabled("move.submit", MS), "Move cannot be retried after rejection"
+        ui.id_click("move.cancel", MS)
+        ui.wait_for(lambda: not exists(MS), what="Move sheet to close")
+        assert ui.ax(f"count rows of {TABLE}") == rows, "the list emptied after cancelling"
+    check("16. Rejected Move stays open with an inline error; the list is NOT emptied", f16)
 finally:
     ui.remove_all()
     ui.teardown()

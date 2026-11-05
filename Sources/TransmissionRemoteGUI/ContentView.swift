@@ -31,6 +31,20 @@ struct ContentView: View {
             }
         }
         .toolbar { toolbarContent }
+        .safeAreaInset(edge: .bottom) {
+            let count = model.unfinishedAutoCopyCount
+            if count > 0 || model.autoCopyStoreError != nil {
+                HStack {
+                    Button { model.showingAutoCopies = true } label: {
+                        Label(loc("Másolások erre a Macre") + (count > 0 ? " (\(count))" : ""), systemImage: "arrow.down.to.line")
+                    }
+                    .accessibilityIdentifier("autoCopy.showJobs")
+                    Spacer()
+                }
+                .padding(8)
+                .background(.bar)
+            }
+        }
         .sheet(item: $model.addRequest, onDismiss: { model.presentNextIncoming() }) { request in
             AddTorrentView(incoming: request.incoming)
         }
@@ -42,6 +56,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingRules) {
             RulesView().environment(model)
+        }
+        .sheet(isPresented: $model.showingAutoCopies) {
+            AutoCopiesView().environment(model)
         }
         .confirmationDialog(
             loc("Biztosan törlöd a kijelölt torrent(eket)?"),

@@ -131,7 +131,7 @@ func testPathMappings(_ t: TestHarness) async {
     await t.test("Show in Finder is only in the menu when the server has path mappings") {
         try t.expect(!TorrentRowMenu.isVisible(.showInFinder, hasPathMappings: false), "hidden without mappings")
         try t.expect(TorrentRowMenu.isVisible(.showInFinder, hasPathMappings: true), "shown with mappings")
-        for command in TorrentRowCommand.allCases where command != .showInFinder {
+        for command in TorrentRowCommand.allCases where command != .showInFinder && command != .copyToMac {
             try t.expect(TorrentRowMenu.isVisible(command, hasPathMappings: false), "\(command) always shown")
         }
     }

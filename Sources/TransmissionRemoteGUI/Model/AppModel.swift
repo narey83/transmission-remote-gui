@@ -96,7 +96,19 @@ final class AppModel {
     }
     static let showDockIconKey = "showDockIcon"
 
-    private var client: RPCClient?
+    private(set) var client: RPCClient?
+    /// One local copy at a time, shared by every window using this model.
+    var isCopyingToMac = false
+    var autoCopyJobs: [AutoCopyJob] = []
+    /// Completed entries remain in history without keeping a status bar on screen.
+    var unfinishedAutoCopyCount: Int {
+        autoCopyJobs.reduce(0) { $0 + ($1.state == .complete ? 0 : 1) }
+    }
+    var showingAutoCopies = false
+    var autoCopyStoreError: String?
+    var autoCopyProgress: LocalCopyProgress?
+    var autoCopyTask: Task<Void, Never>?
+    let copyDestinationAccess: CopyDestinationAccess
     private var pollingTask: Task<Void, Never>?
 
     /// RSS auto-downloader: feeds + rules + dedup (persisted).
@@ -162,7 +174,10 @@ final class AppModel {
         return stripped.isEmpty ? loc("ismeretlen") : stripped
     }
 
-    init() {
+    init(copyDestinationAccess: CopyDestinationAccess = .system) {
+        self.copyDestinationAccess = copyDestinationAccess
+        do { autoCopyJobs = try AutoCopyStore.load() }
+        catch { autoCopyStoreError = locError(error) }
         if let saved = UserDefaults.standard.object(forKey: Self.uiScaleKey) as? Double {
             self.uiScale = Self.scaleRange.clamped(saved)
         }
@@ -310,6 +325,7 @@ final class AppModel {
     }
 
     private func stopPolling() {
+        autoCopyTask?.cancel()
         pollingTask?.cancel()
         pollingTask = nil
         rssPollTask?.cancel()
@@ -353,6 +369,7 @@ final class AppModel {
             self.presentNextIncoming()
             await self.refreshDetail()
             await self.loadFreeSpace()
+            self.scheduleAutoCopies()
         } catch is CancellationError {
             // The poll was stopped (server switch / disconnect) — not a connection error.
         } catch {
@@ -650,11 +667,18 @@ final class AppModel {
         await perform { try await $0.queueMove(move, ids: ids) }
     }
 
-    /// Move the given (or selected) torrents' data to `location`.
+    /// Move the given torrents' data to `location`.
     /// With `move: false` only the recorded location changes — use it when the files
     /// were already moved by other means.
-    func setLocation(_ location: String, move: Bool, ids: RPCIds? = nil) async {
-        await perform { try await $0.torrentSetLocation(ids: ids ?? self.selectionIDs, location: location, move: move) }
+    /// The sheet displays failures locally, rather than queuing a shared alert behind it.
+    /// Capture the server before awaiting so a completed move records its history there.
+    func setLocation(_ location: String, move: Bool, ids: RPCIds, serverID: UUID) async throws {
+        guard selectedServerID == serverID, let client else {
+            throw RPCError.transport(loc("Nincs kapcsolat"))
+        }
+        try await client.torrentSetLocation(ids: ids, location: location, move: move)
+        recordUsedDownloadDir(location, serverID: serverID)
+        await refresh()
     }
 
     /// Rename a single torrent's top-level path, i.e. the name shown in the list.

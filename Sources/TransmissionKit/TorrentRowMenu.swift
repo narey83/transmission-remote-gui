@@ -19,6 +19,7 @@ public enum TorrentRowCommand: String, CaseIterable, Sendable {
     case copyName
     case copyHash
     case showInFinder
+    case copyToMac
     case removeKeepData
     case removeWithData
 }
@@ -50,7 +51,8 @@ public enum TorrentRowMenu {
         Entry(command: .queueUp, titleKey: "Feljebb a sorban", separatorAfter: false),
         Entry(command: .queueDown, titleKey: "Lejjebb a sorban", separatorAfter: false),
         Entry(command: .queueBottom, titleKey: "Sor végére", separatorAfter: true),
-        Entry(command: .showInFinder, titleKey: "Megjelenítés a Finderben", separatorAfter: true),
+        Entry(command: .showInFinder, titleKey: "Megjelenítés a Finderben", separatorAfter: false),
+        Entry(command: .copyToMac, titleKey: "Másolás erre a Macre…", separatorAfter: true),
         Entry(command: .copyName, titleKey: "Név másolása", separatorAfter: false),
         Entry(command: .copyHash, titleKey: "Hash másolása", separatorAfter: true),
         Entry(command: .removeKeepData, titleKey: "Törlés a listából", separatorAfter: false),
@@ -75,10 +77,9 @@ public enum TorrentRowMenu {
         rows.compactMap { $0 >= 0 && $0 < torrents.count ? torrents[$0] : nil }
     }
 
-    /// Whether `command` belongs in the menu at all. "Show in Finder" only makes sense
-    /// once the server has path mappings, so without them it stays out of the way.
+    /// Filesystem actions need the server's remote-to-local path mappings.
     public static func isVisible(_ command: TorrentRowCommand, hasPathMappings: Bool) -> Bool {
-        command != .showInFinder || hasPathMappings
+        (command != .showInFinder && command != .copyToMac) || hasPathMappings
     }
 
     /// Whether `command` applies to the given target torrents.
@@ -104,6 +105,11 @@ public enum TorrentRowMenu {
             return torrents.contains { $0.hashString?.isEmpty == false }
         case .showInFinder:
             return torrents.allSatisfy { $0.downloadDir?.isEmpty == false }
+        case .copyToMac:
+            return torrents.allSatisfy {
+                $0.percentDone == 1 && $0.statusValue != .verifying && $0.statusValue != .queuedToVerify
+                    && $0.downloadDir?.isEmpty == false
+            }
         case .queueTop, .queueUp, .queueDown, .queueBottom, .move, .editProperties, .removeKeepData, .removeWithData:
             return true
         }

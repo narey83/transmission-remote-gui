@@ -67,3 +67,20 @@ loopback mock, never the user's saved server configuration or real torrents.
 Its automated mode requires the existing UI-test harness's accessibility helper
 (`TRGUI UITest Helper.app`). Use `--interactive` to inspect the same fixtures with
 native UI automation or manually when that helper is not installed.
+
+## Copy completed downloads to this Mac
+
+Select finished torrents and choose **Copy to This Mac…** from their context menu, then choose a local destination. The share must already be mounted and its path mapping configured, just as for Show in Finder. Transmission RPC supplies the file list; the app copies those files through the mounted share. It does not install a local torrent engine or require a new service on the server.
+
+Only completed, wanted files are copied. Server files are left in place. Existing local files are never overwritten: a numbered name is used instead. Cancelling removes unpublished partial files; any earlier torrents that finished copying stay available in Finder.
+
+### Automatically copy from Add Torrent
+
+Tick **Copy to this Mac when finished** in the Add Torrent window, choose a local destination with **Browse…**, and choose what happens **After copying**:
+
+- **Keep on server** is the default. The remote torrent and files remain available for seeding.
+- **Delete torrent and files from server** removes the remote torrent and its data only after the local copy is published and checked byte for byte against every current remote file. All files must be selected; an excluded file prevents deletion.
+
+The torrent still downloads on the selected server first. Keep the app open and the share mounted for automatic copying, or reopen the app and connect to that server later. Waiting requests are saved locally and resume after restart. If the share is unavailable, reconnect it and use **Retry** in **View → Copies to this Mac**. A shortcut at the bottom of the main window appears only while copies are unfinished or need attention; its count excludes completed history. Progress, the saved local path, failures and completed history are available from the View menu. Removing an entry only cancels the copy request or clears its history; it does not delete files.
+
+Requests are bound to the original server, torrent hash and path mappings. A changed configuration requires setting up the copy again. Interrupted copies require checking for a local copy before retrying, since a crash may have happened just after publishing. A failed or interrupted server cleanup is never retried automatically; inspect the local and server files before taking further action. If the server disconnects while processing a delete request, its result can be uncertain. No local file is removed to compensate for a server error.

@@ -28,6 +28,9 @@ struct TransmissionRemoteGUIApp: App {
                 Button(loc("Frissítések keresése…")) { Task { await UpdateChecker.shared.check(manual: true) } }
             }
             CommandGroup(after: .toolbar) {
+                Button(loc("Másolások erre a Macre")) { model.showingAutoCopies = true }
+                    .disabled(model.autoCopyJobs.isEmpty && model.autoCopyStoreError == nil)
+                Divider()
                 Button(loc("Nagyítás")) { model.zoomIn() }
                     .keyboardShortcut("+", modifiers: .command)
                 Button(loc("Kicsinyítés")) { model.zoomOut() }

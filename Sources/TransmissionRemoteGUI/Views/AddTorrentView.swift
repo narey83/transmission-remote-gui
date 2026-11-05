@@ -1,6 +1,7 @@
+import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 import TransmissionKit
+import UniformTypeIdentifiers
 
 struct AddTorrentView: View {
     @Environment(AppModel.self) private var model
@@ -11,6 +12,9 @@ struct AddTorrentView: View {
     @State private var fileImporter = false
     @State private var torrentFile: URL?
     @State private var isAdding = false
+    @State private var copyWhenFinished = false
+    @State private var deleteFromServer = false
+    @State private var localDestination = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
     /// Daemon-side destination for this torrent only; prefilled with the daemon's default.
     @State private var downloadDir = ""
 
@@ -26,11 +30,6 @@ struct AddTorrentView: View {
     private var downloadDirIsValid: Bool {
         let trimmed = downloadDir.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty || TorrentRowMenu.sanitizedLocation(trimmed) != nil
-    }
-
-    private var currentDirIsFavorite: Bool { model.downloadDirs.isFavorite(downloadDir) }
-    private var canFavoriteCurrentDir: Bool {
-        TorrentRowMenu.sanitizedLocation(downloadDir) != nil
     }
 
     var body: some View {
@@ -52,7 +51,45 @@ struct AddTorrentView: View {
                 }
             }
 
-            downloadDirSection
+            DownloadDirectoryPicker(directory: $downloadDir)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(loc("Másolás erre a Macre a letöltés után"), isOn: $copyWhenFinished)
+                    .accessibilityIdentifier("add.copyWhenFinished")
+                    .disabled((model.selectedServer?.pathMappings ?? []).isEmpty || model.autoCopyStoreError != nil)
+                if copyWhenFinished {
+                    HStack {
+                        Text(localDestination?.path ?? loc("Válassz mappát"))
+                            .lineLimit(1).truncationMode(.middle)
+                            .accessibilityIdentifier("add.localDestination")
+                        Spacer()
+                        Button(loc("Tallózás…"), action: chooseLocalFolder)
+                            .accessibilityIdentifier("add.chooseLocalDestination")
+                    }
+                    Picker(loc("A másolás után"), selection: $deleteFromServer) {
+                        Text(loc("Megtartás a szerveren")).tag(false)
+                        Text(loc("Torrent és fájlok törlése a szerverről")).tag(true)
+                    }
+                    .accessibilityIdentifier("add.afterCopy")
+                    Text(
+                        loc(
+                            "A szerver tölti le, majd az app a csatolt megosztásról másolja. Tartsd nyitva az appot, vagy nyisd meg később a folytatáshoz."
+                        )
+                    )
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if deleteFromServer {
+                        Text(
+                            loc(
+                                "A szerverről csak a teljes helyi másolat ellenőrzése után törlünk. Minden torrentfájlt ki kell jelölni."
+                            )
+                        )
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if (model.selectedServer?.pathMappings ?? []).isEmpty {
+                    Text(loc("Az automatikus másoláshoz állíts be útvonal-hozzárendelést egy csatolt megosztáshoz."))
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
 
             HStack {
                 Button {
@@ -64,8 +101,6 @@ struct AddTorrentView: View {
                 Toggle(loc("Leállítva add hozzá"), isOn: $paused)
             }
 
-            Spacer()
-
             HStack {
                 Spacer()
                 Button(loc("Mégse")) { dismiss() }
@@ -74,15 +109,18 @@ struct AddTorrentView: View {
                     submit()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled((torrentFile == nil && magnet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                          || !downloadDirIsValid || !model.isConnected)
+                .disabled(
+                    (torrentFile == nil && magnet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        || !downloadDirIsValid || !model.isConnected || (copyWhenFinished && localDestination == nil)
+                )
                 .accessibilityIdentifier("add.submit")
             }
         }
         .disabled(isAdding)
         .interactiveDismissDisabled(isAdding)
         .padding(20)
-        .frame(width: 520, height: 350)
+        .frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
         .fileImporter(
             isPresented: $fileImporter,
             allowedContentTypes: [UTType(filenameExtension: "torrent") ?? .data]
@@ -98,99 +136,13 @@ struct AddTorrentView: View {
 
     // MARK: - Download directory
 
-    private var downloadDirSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(loc("Célmappa a szerveren (abszolút útvonal)")).font(.callout).foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                TextField(model.defaultDownloadDir ?? "/mnt/data/…", text: $downloadDir)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("add.downloadDir")
-                    .accessibilityLabel(loc("Célmappa a szerveren (abszolút útvonal)"))
-                Button {
-                    if currentDirIsFavorite {
-                        model.removeFavoriteDownloadDir(downloadDir)
-                    } else {
-                        model.addFavoriteDownloadDir(downloadDir)
-                    }
-                } label: {
-                    Image(systemName: currentDirIsFavorite ? "star.fill" : "star")
-                }
-                .buttonStyle(.borderless)
-                .disabled(!canFavoriteCurrentDir)
-                .help(currentDirIsFavorite ? loc("Eltávolítás a kedvencek közül") : loc("Hozzáadás a kedvencekhez"))
-                .accessibilityLabel(currentDirIsFavorite ? loc("Eltávolítás a kedvencek közül") : loc("Hozzáadás a kedvencekhez"))
-                .accessibilityIdentifier("add.downloadDir.favorite")
-                downloadDirMenu
-            }
-            let mapped = DownloadDirectories.mappedDestinations(model.selectedServer?.pathMappings ?? [])
-            if !mapped.isEmpty {
-                Picker(loc("Mentés ide:"), selection: $downloadDir) {
-                    if !mapped.contains(downloadDir) {
-                        Text(downloadDir.isEmpty ? loc("Alapértelmezett mappa") : downloadDir).tag(downloadDir)
-                    }
-                    ForEach(mapped, id: \.self) { dir in
-                        Text(dir).tag(dir)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("add.downloadDir.mappings")
-            }
-            if downloadDirIsValid {
-                Text(loc("Csak ennél a torrentnél — a szerver alapértelmezett mappája nem változik."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } else {
-                Text(loc("Abszolút útvonalat adj meg, vagy hagyd üresen az alapértelmezett mappához."))
-                    .font(.caption).foregroundStyle(.red)
-                    .accessibilityIdentifier("add.downloadDir.error")
-            }
-        }
-    }
-
-    private var downloadDirMenu: some View {
-        let dirs = model.downloadDirs
-        return Menu {
-            if let defaultDir = model.defaultDownloadDir {
-                Button(loc("Alapértelmezett mappa") + ": " + defaultDir) { downloadDir = defaultDir }
-                    .accessibilityIdentifier("add.downloadDir.default")
-            }
-            if !dirs.favorites.isEmpty {
-                Section(loc("Kedvencek")) {
-                    ForEach(dirs.favorites, id: \.self) { dir in
-                        Button(dir) { downloadDir = dir }
-                    }
-                }
-            }
-            if !dirs.recent.isEmpty {
-                Section(loc("Legutóbb használt")) {
-                    ForEach(dirs.recent, id: \.self) { dir in
-                        Button(dir) { downloadDir = dir }
-                    }
-                }
-            }
-            Divider()
-            if currentDirIsFavorite {
-                Button(loc("Eltávolítás a kedvencek közül")) { model.removeFavoriteDownloadDir(downloadDir) }
-            } else {
-                Button(loc("Hozzáadás a kedvencekhez")) { model.addFavoriteDownloadDir(downloadDir) }
-                    .disabled(!canFavoriteCurrentDir)
-            }
-            if !dirs.favorites.isEmpty {
-                Menu(loc("Kedvenc eltávolítása")) {
-                    ForEach(dirs.favorites, id: \.self) { dir in
-                        Button(dir) { model.removeFavoriteDownloadDir(dir) }
-                    }
-                }
-            }
-            Button(loc("Előzmények törlése")) { model.clearRecentDownloadDirs() }
-                .disabled(dirs.recent.isEmpty)
-        } label: {
-            Image(systemName: "folder.badge.gearshape")
-        }
-        .menuIndicator(.visible)
-        .fixedSize()
-        .help(loc("Kedvenc és legutóbbi mappák"))
-        .accessibilityLabel(loc("Kedvenc és legutóbbi mappák"))
-        .accessibilityIdentifier("add.downloadDir.menu")
+    private func chooseLocalFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = localDestination
+        if panel.runModal() == .OK { localDestination = panel.url }
     }
 
     private func prefillDownloadDir() {
@@ -203,9 +155,12 @@ struct AddTorrentView: View {
     private func resolvedDownloadDir() -> (dir: String?, record: @MainActor () -> Void) {
         let dir = DownloadDirectories.effectiveDownloadDir(downloadDir, daemonDefault: model.defaultDownloadDir)
         let serverID = model.selectedServerID
-        return (dir, {
-            if let dir, let serverID { model.recordUsedDownloadDir(dir, serverID: serverID) }
-        })
+        return (
+            dir,
+            {
+                if let dir, let serverID { model.recordUsedDownloadDir(dir, serverID: serverID) }
+            }
+        )
     }
 
     private func submit() {
@@ -216,7 +171,11 @@ struct AddTorrentView: View {
         isAdding = true
         Task {
             let added: Bool
-            if let torrentFile {
+            if copyWhenFinished, let localDestination {
+                added = await model.addWithAutoCopy(
+                    filename: value, file: torrentFile, paused: paused,
+                    downloadDir: target.dir, destination: localDestination, deleteFromServer: deleteFromServer)
+            } else if let torrentFile {
                 added = await model.addTorrentFile(torrentFile, paused: paused, downloadDir: target.dir)
             } else {
                 added = await model.add(filename: value, paused: paused, downloadDir: target.dir)

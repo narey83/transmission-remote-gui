@@ -26,7 +26,7 @@ jobs:
       - name: Localization tests
         run: swift run LocalizationTests
 
-      - name: Incoming torrent confirmation (offline model tests)
+      - name: Torrent confirmation, move folders and local copies (offline model tests)
         run: bash Scripts/test-add-confirmation.sh
 
       - name: Torrent text-cell layout

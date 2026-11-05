@@ -28,12 +28,14 @@ classic [transgui](https://github.com/transmission-remote-gui/transgui) (Lazarus
 - **Choose the download folder** in the Add dialog — a daemon-side path for that torrent only (defaults to the daemon's download folder, which stays unchanged), with per-server **favorite** and **recently used** folders
 - **Open With / double-click** a `.torrent` in Finder, click a **magnet link**, or drop a torrent onto the window — asks where to save before adding to the current server (queued until connected if the app was closed). The Add dialog offers the remote folders from your server's path mappings, and Cancel submits nothing. Choosing a `.torrent` file in the dialog also waits for Add.
 - Start / stop / remove (optionally along with data), **verify**, and **reannounce** — from the toolbar or the row's **right-click context menu**
-- **Right-click context menu** on torrent rows, which also offers **move** (`torrent-set-location`, with an optional "move the files" switch), **rename** (`torrent-rename-path`), and copy name / hash. A click inside a multi-selection acts on the whole selection, like Finder.
+- **Right-click context menu** on torrent rows, which also offers **move** (`torrent-set-location`, with an optional "move the files" switch), **rename** (`torrent-rename-path`), and copy name / hash. A click inside a multi-selection acts on the whole selection, like Finder. Move offers mapped server folders, favorites and recent destinations shared with Add; only successful moves enter history.
 - **Batch-edit properties** of the selected torrents (right-click → *Properties…*): download / upload limit, honour global speed limits, bandwidth priority, peer limit and labels. Fields where the torrents differ show as *Mixed*; nothing changes unless you edit it. Labels can be **added / removed** (every other label stays) or **replaced** as a whole list (labels need Transmission 3.00+)
 - **Details panel** (toggled with ⌘I) with tabs: **General / Files / Peers / Trackers**
   - Peers with **country flags** (bundled, offline country data — see [Peers](#peers)); every Peers / Trackers column is **sortable**, addresses in numeric order
   - **Files as a folder tree**: expand/collapse folders with aggregated size and progress; a folder's checkbox (mixed when partly selected) and priority apply to every file inside in one call; **Show in Finder** for a single file or folder when a path mapping applies
+- **Copy completed downloads to this Mac**: select finished torrents, right-click → *Copy to This Mac…*, and choose a local folder. Reads only the torrent’s completed, wanted files through an already mounted share and the server’s path mappings. Shows progress, supports cancellation, keeps the server’s files in place, and gives existing local names a numbered suffix instead of overwriting them.
   - **Per-torrent speed limit**; **labels/categories** editing
+- **Automatically copy after downloading**: in Add Torrent, tick *Copy to this Mac when finished*, choose a local folder, and select *Keep on server* (default) or *Delete torrent and files from server*. The server downloads first; the app copies through the mounted share when complete. Pending requests survive app restarts. *Copies to this Mac* shows progress, failures and retry controls. Server deletion requires every torrent file to be selected and a byte-for-byte check of the local copy; a failed or interrupted cleanup needs review rather than being repeated automatically.
 - **Torrent rules** — per-tracker, per-label or per-name rules that set seed ratio, idle limit, speed limits and labels, or stop the torrent. First match wins, each torrent is classified once (manual changes are never overwritten), and every change is shown in a **dry run** first. Ratio/idle limits are enforced by the daemon, so they keep working while the app is closed. [Screenshots ↓](#torrent-rules)
 - **RSS auto-downloader** — watched feeds + title-match rules (substring or `/regex/`) → automatic torrent add, with dedup
 - **mTLS client-certificate** authentication (optional `.p12` per server) for a reverse proxy that requires it
@@ -145,8 +147,9 @@ python3 Scripts/uitest/test_peers.py           # Peers tab: flags, sorting (made
 python3 Scripts/uitest/test_path_mappings.py   # Show in Finder via path mappings (local mock server)
 python3 Scripts/uitest/test_file_tree.py       # Files tab tree: expand, folder select/priority (local mock server)
 python3 Scripts/uitest/test_updates.py         # update check + opt-in usage ping (local server)
+python3 Scripts/uitest/test_move_download_dir.py  # Move folder choices, validation, cancellation and shared history (local mock)
 python3 Scripts/uitest/test_add_download_dir.py # Add dialog: per-torrent download folder, favorites, history
-bash Scripts/test-add-confirmation.sh          # Offline model regression: opens wait, Cancel never submits, server switches clear queued opens
+bash Scripts/test-add-confirmation.sh          # Offline model regression: opens wait, Cancel never submits, Move history/failures stay scoped to the server
 python3 Scripts/uitest/test_rules.py "dist/Transmission Remote GUI.app"
 UITEST_DAEMON=tr4 python3 Scripts/uitest/test_rules.py …   # against Transmission 4.x instead of 3.00
 ```

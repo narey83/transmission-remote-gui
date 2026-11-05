@@ -1,6 +1,6 @@
 import Foundation
 
-/// Per-server download-directory choices for the Add dialog: favorites the user pinned and the
+/// Per-server download-directory choices for the Add and Move dialogs: favorites the user pinned and the
 /// most recently used destinations. These are daemon-side paths (never local Finder paths), so
 /// they are only trimmed and compared as text — no file-system lookups.
 public struct DownloadDirectories: Codable, Hashable, Sendable {

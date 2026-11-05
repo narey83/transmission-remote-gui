@@ -32,7 +32,7 @@ try:
             name = f"{heads[i - 1]}: {'Ctrl+click' if ctrl else 'right-click'}"
             print(f"  {'✓' if ok else '✗'} {name}")
             if ok:
-                ui.click("button 1 of group 1 of sheet 1 of window 1"); time.sleep(0.6)
+                ui.id_click("move.cancel", "sheet 1 of window 1"); time.sleep(0.6)
             else:
                 failed.append(name)
     # The test server has no path mappings, so "Show in Finder" must stay out of the menu

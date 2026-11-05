@@ -9,6 +9,7 @@ struct TorrentListView: View {
     @State private var renameRequest: RenameRequest?
     @State private var propertiesRequest: PropertiesRequest?
     @State private var removeRequest: RemoveRequest?
+    @State private var copyRequest: CopyRequest?
 
     var body: some View {
         @Bindable var model = model
@@ -42,14 +43,17 @@ struct TorrentListView: View {
         }
         .navigationTitle(model.selectedServer?.name ?? "Transmission Remote GUI")
         .sheet(item: $moveRequest) { request in
-            MoveTorrentView(torrents: request.torrents) { location, move in
-                Task { await model.setLocation(location, move: move, ids: request.ids) }
+            MoveTorrentView(torrents: request.torrents, serverID: request.serverID) { location, move in
+                try await model.setLocation(location, move: move, ids: request.ids, serverID: request.serverID)
             }
         }
         .sheet(item: $renameRequest) { request in
             RenameTorrentView(torrent: request.torrent) { newName in
                 Task { await model.rename(id: request.torrent.id, from: request.oldName, to: newName) }
             }
+        }
+        .sheet(item: $copyRequest) { request in
+            CopyToMacView(torrents: request.torrents, serverID: request.serverID).environment(model)
         }
         .sheet(item: $propertiesRequest) { request in
             TorrentPropertiesView(
@@ -108,7 +112,8 @@ struct TorrentListView: View {
         case .reannounce:
             Task { await model.reannounce(ids: ids) }
         case .move:
-            moveRequest = MoveRequest(torrents: targets)
+            guard let serverID, model.selectedServerID == serverID else { return }
+            moveRequest = MoveRequest(torrents: targets, serverID: serverID)
         case .editProperties:
             propertiesRequest = PropertiesRequest(torrents: targets)
         case .rename:
@@ -122,6 +127,9 @@ struct TorrentListView: View {
         case .showInFinder:
             guard let serverID else { return }
             Task { await model.showInFinder(targets, serverID: serverID) }
+        case .copyToMac:
+            guard let serverID, model.selectedServerID == serverID else { return }
+            copyRequest = CopyRequest(torrents: targets, serverID: serverID)
         case .removeKeepData:
             removeRequest = RemoveRequest(torrents: targets, deleteData: false)
         case .removeWithData:
@@ -155,7 +163,14 @@ struct TorrentListView: View {
 private struct MoveRequest: Identifiable {
     let id = UUID()
     let torrents: [Torrent]
+    let serverID: UUID
     var ids: RPCIds { .ids(torrents.map { RPCIdentifier.id($0.id) }) }
+}
+
+private struct CopyRequest: Identifiable {
+    let id = UUID()
+    let torrents: [Torrent]
+    let serverID: UUID
 }
 
 private struct PropertiesRequest: Identifiable {

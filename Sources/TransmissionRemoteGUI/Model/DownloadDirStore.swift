@@ -1,7 +1,7 @@
 import Foundation
 import TransmissionKit
 
-/// Persists the Add dialog's per-server favorite and recent download directories as JSON in
+/// Persists the Add and Move dialogs' per-server favorite and recent download directories as JSON in
 /// Application Support, keyed by server ID. Kept apart from `servers.json` so editing a server
 /// (which rebuilds its `ServerConfig`) never drops the history.
 enum DownloadDirStore {

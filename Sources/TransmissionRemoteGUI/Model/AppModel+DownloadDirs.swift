@@ -1,7 +1,7 @@
 import Foundation
 import TransmissionKit
 
-/// Per-server favorite and recently used download directories for the Add dialog.
+/// Per-server favorite and recently used download directories for the Add and Move dialogs.
 /// The logic (dedupe, limit, normalization) lives in `TransmissionKit.DownloadDirectories`.
 extension AppModel {
     /// Favorites and history of the selected server (empty when none is selected).
